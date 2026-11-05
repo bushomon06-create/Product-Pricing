@@ -1,0 +1,92 @@
+/* ========================================================================== */
+/* ملف الأنماط والتنسيقات المخصصة - نظام مُثمّن للتسعير الذكي                  */
+/* style.css                                                                  */
+/* ========================================================================== */
+
+/* ========================================================================== */
+/* 1. ضبط الخطوط العامة والتفاعل واللمس (Base Fonts & Interactions)             */
+/* ========================================================================== */
+body {
+    font-family: 'Cairo', 'Tajawal', sans-serif;
+    -webkit-tap-highlight-color: transparent;
+}
+
+/* ========================================================================== */
+/* 2. شريط التمرير المخصص الأنيق (Custom Smooth Scrollbar)                     */
+/* ========================================================================== */
+::-webkit-scrollbar {
+    width: 7px;
+    height: 7px;
+}
+
+::-webkit-scrollbar-track {
+    background: #f7f6f2;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #d5d1c8;
+    border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #a5a095;
+}
+
+/* ========================================================================== */
+/* 3. مؤثرات الحركة والانتقال السلس (Animations & Keyframes)                   */
+/* ========================================================================== */
+.fade-in {
+    animation: fadeIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* ========================================================================== */
+/* 4. تحسين حقول الإدخال الرقمية (Number Input Spinners Customization)         */
+/* ========================================================================== */
+/* إخفاء أسهم الزيادة والنقصان الافتراضية للمتصفحات لمنح مظهر عصري */
+input[type=number]::-webkit-inner-spin-button,
+input[type=number]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+input[type=number] {
+    -moz-appearance: textfield;
+}
+
+/* ========================================================================== */
+/* 5. قواعد الطباعة لتوليد التقارير المالية (Print Stylesheets)                */
+/* ========================================================================== */
+@media print {
+    body {
+        background: white !important;
+        color: black !important;
+    }
+
+    /* إخفاء العناصر غير الضرورية في الطباعة */
+    header,
+    footer,
+    #toast-container,
+    .no-print {
+        display: none !important;
+    }
+
+    .print-only {
+        display: block !important;
+    }
+
+    .page-break {
+        page-break-before: always;
+    }
+}
+
