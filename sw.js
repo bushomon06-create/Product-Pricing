@@ -8,7 +8,7 @@ const urlsToCache = [
     '/manifest.json',    // ملف الإعدادات
     '/192.png',          // أيقونة التطبيق
     '/512.png',           // أيقونة التطبيق كبيرة الحجم
-   '/style.css',
+    '/style.css',
     '/main.js',
     
 ];
