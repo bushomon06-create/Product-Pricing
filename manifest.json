@@ -1,22 +1,27 @@
+
 {
-    "name": "مثمن - حاسبة تكلفة وإنتاج المنتجات",
-    "short_name": "مثمن",
-    "description": "تطبيق وموقع مثمن لحساب تكاليف الإنتاج والتغليف وتحديد أسعار البيع المناسبة لمنتجاتك بدقة.",
-    "start_url": "/",
-    "display": "standalone",
-    "background_color": "#0d1b2a",
-    "theme_color": "#1b4965",
-    "orientation": "portrait-primary",
-    "icons": [
+  "name": "مثمن - حاسبة تكلفة وإنتاج المنتجات",
+  "short_name": "مثمن",
+  "description": "تطبيق وموقع مثمن لحساب تكاليف الإنتاج والتغليف وتحديد أسعار البيع المناسبة لمنتجاتك بدقة.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0d1b2a",
+  "theme_color": "#1b4965",
+  "orientation": "portrait-primary",
+  "icons": [
     {
-        "src": "192.png",
-        "sizes": "192x192",
-        "type": "image/png"
+      "src": "192.png",
+      "sizes": "192x192",
+      "type": "image/png"
     },
     {
-        "src": "512.png",
-        "sizes": "512x512",
-        "type": "image/png"
+      "src": "512.png",
+      "sizes": "512x512",
+      "type": "image/png"
     }
-]
+  ],
+  "id": "muthamin-app",
+  "categories": [
+    "business"
+  ]
 }
