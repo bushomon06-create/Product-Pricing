@@ -6,6 +6,14 @@
  */
 
 // ============================================================================
+// اتصال قاعدة بيانات Supabase
+// ============================================================================
+
+const SUPABASE_URL = 'https://xwbnaxaastpaeguiuggf.supabase.co';
+const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_zK4DWoY-7YUUmMKyecIkew_HmBXTvQB';
+const supabaseClient = window.supabase?.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+
+// ============================================================================
 // 1. إدارة العملات والتنسيق المالي (Currency & Formatting Engine)
 // ============================================================================
 
@@ -34,19 +42,26 @@ const CURRENCIES = {
 let currentCurrency = CURRENCIES.SAR;
 
 /**
- * تهيئة العملة واسترجاع الإعداد المحفوظ من الذاكرة المحلية
+ * تهيئة العملة واسترجاع الإعداد المحفوظ من قاعدة البيانات
  */
-function initCurrency() {
-    const stored = localStorage.getItem('mothamen_currency');
-    if (stored) {
-        try {
-            const parsed = JSON.parse(stored);
-            if (parsed && parsed.symbol) {
-                currentCurrency = parsed;
-            }
-        } catch (e) {
-            currentCurrency = CURRENCIES.SAR;
-        }
+async function initCurrency() {
+    if (!supabaseClient) {
+        showToast('تعذر تحميل اتصال قاعدة البيانات', 'warning');
+        updateCurrencyUI();
+        return;
+    }
+
+    const { data, error } = await supabaseClient
+        .from('current_currency')
+        .select('*')
+        .limit(1)
+        .maybeSingle();
+
+    if (error) {
+        console.error('Currency load error:', error);
+        showToast('تعذر تحميل العملة من قاعدة البيانات', 'warning');
+    } else if (data?.symbol) {
+        currentCurrency = data;
     }
     updateCurrencyUI();
 }
@@ -65,9 +80,34 @@ function handleCurrencyChange(code) {
 /**
  * حفظ العملة وتحديث واجهة المستخدم والحسابات اللحظية
  */
-function setCurrency(curr) {
+async function setCurrency(curr) {
+    if (!supabaseClient) {
+        showToast('تعذر حفظ العملة: اتصال قاعدة البيانات غير متاح', 'warning');
+        return;
+    }
+
+    const { error: deleteError } = await supabaseClient
+        .from('current_currency')
+        .delete()
+        .neq('code', '');
+
+    if (deleteError) {
+        console.error('Currency delete error:', deleteError);
+        showToast('تعذر تحديث العملة في قاعدة البيانات', 'warning');
+        return;
+    }
+
+    const { error: insertError } = await supabaseClient
+        .from('current_currency')
+        .insert(curr);
+
+    if (insertError) {
+        console.error('Currency save error:', insertError);
+        showToast('تعذر حفظ العملة في قاعدة البيانات', 'warning');
+        return;
+    }
+
     currentCurrency = curr;
-    localStorage.setItem('mothamen_currency', JSON.stringify(currentCurrency));
     updateCurrencyUI();
     calculateRealtime();
     renderDashboard();
@@ -270,27 +310,93 @@ let profitChartInstance = null; // كائن الرسم البياني الشري
 let costChartInstance = null; // كائن الرسم البياني الدائري
 
 /**
- * استرجاع المنتجات من التخزين المحلي
+ * استرجاع المنتجات من قاعدة البيانات
  */
-function initStorage() {
-    const stored = localStorage.getItem('mothamen_products');
-    if (!stored) {
-        products = [...DEFAULT_MOCK_DATA];
-        saveToStorage();
+function normalizeProduct(product) {
+    const numericFields = [
+        'materials', 'packaging', 'delivery', 'laborHours', 'hourlyRate',
+        'laborCost', 'gatewayFeePct', 'vatPct', 'totalCost', 'marginPct',
+        'sellingPrice', 'netProfit'
+    ];
+    const normalized = { ...product };
+    numericFields.forEach(field => {
+        normalized[field] = Number(normalized[field] || 0);
+    });
+    normalized.bomItems = Array.isArray(normalized.bomItems) ? normalized.bomItems : [];
+    return normalized;
+}
+
+async function initStorage() {
+    if (!supabaseClient) {
+        products = [];
+        updateBadgeCount();
+        return;
+    }
+
+    const { data, error } = await supabaseClient
+        .from('products')
+        .select('*')
+        .order('date', { ascending: false });
+
+    if (error) {
+        console.error('Products load error:', error);
+        showToast('تعذر تحميل المنتجات من قاعدة البيانات', 'warning');
+        products = [];
     } else {
-        try {
-            products = JSON.parse(stored);
-        } catch (e) {
-            products = [...DEFAULT_MOCK_DATA];
-            saveToStorage();
-        }
+        products = (data || []).map(normalizeProduct);
     }
     updateBadgeCount();
 }
 
-function saveToStorage() {
-    localStorage.setItem('mothamen_products', JSON.stringify(products));
-    updateBadgeCount();
+async function saveToStorage(product) {
+    if (!supabaseClient) {
+        showToast('تعذر حفظ المنتج: اتصال قاعدة البيانات غير متاح', 'warning');
+        return false;
+    }
+
+    const { error } = await supabaseClient
+        .from('products')
+        .upsert(normalizeProduct(product), { onConflict: 'id' });
+
+    if (error) {
+        console.error('Product save error:', error);
+        showToast('تعذر حفظ المنتج في قاعدة البيانات', 'warning');
+        return false;
+    }
+
+    return true;
+}
+
+async function replaceProductsInDatabase(nextProducts) {
+    if (!supabaseClient) {
+        showToast('تعذر تحديث المنتجات: اتصال قاعدة البيانات غير متاح', 'warning');
+        return false;
+    }
+
+    const { error: deleteError } = await supabaseClient
+        .from('products')
+        .delete()
+        .neq('id', '');
+
+    if (deleteError) {
+        console.error('Products delete error:', deleteError);
+        showToast('تعذر تحديث المنتجات في قاعدة البيانات', 'warning');
+        return false;
+    }
+
+    if (nextProducts.length > 0) {
+        const { error: insertError } = await supabaseClient
+            .from('products')
+            .insert(nextProducts.map(normalizeProduct));
+
+        if (insertError) {
+            console.error('Products insert error:', insertError);
+            showToast('تعذر حفظ المنتجات في قاعدة البيانات', 'warning');
+            return false;
+        }
+    }
+
+    return true;
 }
 
 function updateBadgeCount() {
@@ -444,7 +550,7 @@ function toggleAdvancedFees() {
 /**
  * حفظ المنتج الجديد أو تحديث المنتج القائم
  */
-function saveProductToLedger() {
+async function saveProductToLedger() {
     const nameInput = document.getElementById('product-name');
     const name = nameInput.value.trim();
 
@@ -479,32 +585,36 @@ function saveProductToLedger() {
     }
 
     if (editingProductId) {
-        // تحديث منتج مسجل سابقاً
         const index = products.findIndex(p => p.id === editingProductId);
-        if (index !== -1) {
-            products[index] = {
-                ...products[index],
-                name,
-                category,
-                materials,
-                packaging,
-                delivery,
-                laborHours: hours,
-                hourlyRate: rate,
-                laborCost,
-                gatewayFeePct,
-                vatPct,
-                totalCost,
-                marginPct: selectedMargin,
-                sellingPrice,
-                netProfit,
-                bomItems: [...temporaryBomList]
-            };
-            showToast(`تم تحديث "${name}" بنجاح!`, 'success');
+        if (index === -1) {
+            showToast('تعذر العثور على المنتج المطلوب تعديله', 'warning');
+            return;
         }
+
+        const updatedProduct = {
+            ...products[index],
+            name,
+            category,
+            materials,
+            packaging,
+            delivery,
+            laborHours: hours,
+            hourlyRate: rate,
+            laborCost,
+            gatewayFeePct,
+            vatPct,
+            totalCost,
+            marginPct: selectedMargin,
+            sellingPrice,
+            netProfit,
+            bomItems: [...temporaryBomList]
+        };
+
+        if (!await saveToStorage(updatedProduct)) return;
+        products[index] = updatedProduct;
+        showToast('تم تحديث "' + name + '" بنجاح!', 'success');
         cancelEditMode();
     } else {
-        // إضافة منتج جديد
         const newProduct = {
             id: 'prod-' + Date.now(),
             name,
@@ -525,11 +635,12 @@ function saveProductToLedger() {
             date: new Date().toISOString().split('T')[0]
         };
 
+        if (!await saveToStorage(newProduct)) return;
         products.unshift(newProduct);
-        showToast(`تم حفظ "${name}" بنجاح في السجل المالي!`, 'success');
+        showToast('تم حفظ "' + name + '" بنجاح في السجل المالي!', 'success');
     }
 
-    saveToStorage();
+    updateBadgeCount();
     resetCalculatorForm();
     renderDashboard();
     calculateBreakEven();
@@ -991,20 +1102,38 @@ function renderProductsTable(customList = null) {
 /**
  * حذف منتج من السجل
  */
-function deleteProduct(id, name) {
+async function deleteProduct(id, name) {
     if (confirm(`هل أنت متأكد من رغبتك في حذف "${name}" نهائياً من السجل؟`)) {
+        if (!supabaseClient) {
+            showToast('تعذر حذف المنتج: اتصال قاعدة البيانات غير متاح', 'warning');
+            return;
+        }
+
+        const { error } = await supabaseClient
+            .from('products')
+            .delete()
+            .eq('id', id);
+
+        if (error) {
+            console.error('Product delete error:', error);
+            showToast('تعذر حذف المنتج من قاعدة البيانات', 'warning');
+            return;
+        }
+
         products = products.filter(p => p.id !== id);
-        saveToStorage();
+        updateBadgeCount();
         renderDashboard();
         calculateBreakEven();
-        showToast(`تم حذف "${name}" بنجاح`, 'info');
+        showToast('تم حذف "' + name + '" بنجاح', 'info');
     }
 }
 
-function resetToMockData() {
+async function resetToMockData() {
     if (confirm('هل ترغب في إعادة ضبط البيانات إلى النماذج الافتراضية؟')) {
-        products = [...DEFAULT_MOCK_DATA];
-        saveToStorage();
+        const restoredProducts = DEFAULT_MOCK_DATA.map(normalizeProduct);
+        if (!await replaceProductsInDatabase(restoredProducts)) return;
+        products = restoredProducts;
+        updateBadgeCount();
         renderDashboard();
         calculateBreakEven();
         showToast('تمت استعادة البيانات الافتراضية بنجاح', 'success');
@@ -1133,15 +1262,17 @@ function importFromJson(event) {
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = function(e) {
+    reader.onload = async function(e) {
         try {
             const imported = JSON.parse(e.target.result);
             if (Array.isArray(imported)) {
-                products = imported;
-                saveToStorage();
+                const importedProducts = imported.map(normalizeProduct);
+                if (!await replaceProductsInDatabase(importedProducts)) return;
+                products = importedProducts;
+                updateBadgeCount();
                 renderDashboard();
                 calculateBreakEven();
-                showToast(`تم استيراد ${imported.length} منتج بنجاح!`, 'success');
+                showToast('تم استيراد ' + imported.length + ' منتج بنجاح!', 'success');
             } else {
                 showToast('الملف المرفوع لا يحتوي على بنية بيانات صالحة', 'warning');
             }
@@ -1301,9 +1432,9 @@ function escapeHtml(string) {
 }
 
 // بدء تشغيل التطبيق عند اكتمال تحميل عناصر الصفحة
-document.addEventListener('DOMContentLoaded', () => {
-    initCurrency();
-    initStorage();
+document.addEventListener('DOMContentLoaded', async () => {
+    await initCurrency();
+    await initStorage();
     setupEventListeners();
     calculateRealtime();
     renderDashboard();
